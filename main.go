@@ -32,14 +32,11 @@ func main() {
 				url = "http://" + url
 			}
 
-			resp, err := http.Get(url)
-			fmt.Println(name)
-			fmt.Println(url)
+			code, err := getFinalStatusCode(url)
+			responseCodes[name] = code
 			if err != nil {
-				responseCodes[name] = 0
-			} else {
-				responseCodes[name] = resp.StatusCode
-				resp.Body.Close()
+				fmt.Println(err)
+				responseCodes[name] = -1
 			}
 		}
 
@@ -47,4 +44,22 @@ func main() {
 	})
 
 	e.Logger.Fatal(e.Start(":" + port))
+}
+
+func getFinalStatusCode(url string) (int, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return -1, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		location := resp.Header.Get("Location")
+		if location == "" {
+			return -1, fmt.Errorf("3xx status code received but no Location header found")
+		}
+		return getFinalStatusCode(location)
+	}
+
+	return resp.StatusCode, nil
 }
